@@ -1,6 +1,16 @@
-# 8a Projekt
+# 8a Tools
 
-Das Grundgerüst für den digitalen Klassenraum der Klasse 8a an der Realschule Zusmarshausen. Ein eigenständiges Klassenprojekt, keine offizielle Schulwebsite.
+Der kreative Werkzeugkasten der Klasse 8a an der Realschule Zusmarshausen. Die Anwendung bündelt ein Whiteboard und einen gemeinsamen Texteditor in einem einheitlichen, responsiven Design. Sie ist ein Klassenprojekt und keine offizielle Schulwebsite.
+
+## Werkzeuge
+
+- **Excalidraw:** Endloses Whiteboard mit Formen, Freihandzeichnen, Bildern, Bibliotheken, Dunkelmodus und Export.
+- **Group Writer:** Formatierter Texteditor mit Überschriften, Listen, Rückgängig/Wiederholen und HTML-Export.
+- **Teilen:** Jeder Arbeitsbereich besitzt getrennte Links zum Ansehen und Bearbeiten. Links können kopiert oder als QR-Code heruntergeladen werden.
+- **Gemeinsam arbeiten:** Änderungen werden automatisch gespeichert und auf anderen geöffneten Geräten regelmäßig synchronisiert.
+- **Zuletzt geöffnet:** Eigene Bearbeitungslinks bleiben lokal im Browser griffbereit.
+
+Das Whiteboard verwendet die freie React-Komponente von [Excalidraw](https://github.com/excalidraw/excalidraw). Der gemeinsame Editor orientiert sich am freien [GroupWriter](https://github.com/kitsteam/groupwriter) und verwendet wie dieses Projekt [TipTap](https://tiptap.dev/).
 
 ## Lokal starten
 
@@ -11,52 +21,30 @@ npm install
 npm run dev
 ```
 
-Die Website läuft unter **http://localhost:5173**. Der Node-Server läuft auf Port 3001. Vite leitet Anfragen an `/api` automatisch weiter.
+Die Website läuft unter `http://localhost:5173`. Der Node-Server läuft standardmäßig auf Port 3001; Vite leitet `/api` automatisch dorthin weiter.
 
-## Enthalten
+## Datenbank und Freigaben
 
-- Responsive Startseite mit eigener Illustration und lokal eingebundenen Schriftarten.
-- Links einklappbare Sidebar; auf dem Handy ein ausfahrbares Menü mit Escape-Taste, Fokusführung und Hintergrundsperre.
-- Projektseite, Info-Dialoge sowie helles und dunkles Design. Design und Desktop-Menüzustand werden im Browser gespeichert.
-- SQLite-Datenbank mit versioniertem Schema, Schulangaben und vorbereiteten Modulen.
-- Express-API mit Lade-, Fehler- und Wiederholungszuständen in der Oberfläche.
+Beim ersten Start wird `data/8a.sqlite` angelegt. Whiteboards und Dokumente werden mit zufälligen IDs gespeichert. Der Bearbeitungsschlüssel steht ausschließlich im Hash des Freigabelinks und wird in der Datenbank nur als SHA-256-Hash abgelegt. Ein Link ohne Schlüssel erlaubt nur das Ansehen.
 
-Stundenplan, Aufgaben und Termine sind **als geplant gekennzeichnet**. Die eigentlichen Schulalltagsfunktionen, Konten und die Erfassung persönlicher Schülerdaten sind noch nicht implementiert.
-
-## Datenbank und API
-
-Beim ersten Serverstart wird `data/8a.sqlite` automatisch angelegt und einmalig mit den Projektinformationen befüllt. Änderungen bleiben über Neustarts erhalten. Es ist kein separater Datenbankdienst erforderlich. Verwendet wird das in Node.js integrierte `node:sqlite`; Node 24 kann dafür eine ExperimentalWarning ausgeben.
-
-| Endpunkt | Inhalt |
+| Endpunkt | Funktion |
 | --- | --- |
-| `GET /api/site` | Projektname, Schule, Klasse, Begrüßungstext und geplante Module aus SQLite |
+| `GET /api/site` | Projekt- und Schulangaben |
+| `POST /api/workspaces` | Whiteboard oder Dokument erstellen |
+| `GET /api/workspaces/:id` | Geteilten Inhalt abrufen |
+| `PUT /api/workspaces/:id` | Inhalt mit Bearbeitungsschlüssel speichern |
 | `GET /api/health` | Server- und Datenbankprüfung |
 
-`server/database.js` enthält Schema und erste Migration; `server/app.js` die Routen. Weitere Funktionen können durch neue Migrationen, API-Routen und Seiten ergänzt werden. Die API ist zunächst nur lesend; es gibt keine öffentliche Schreibschnittstelle.
+Die Konfiguration ist in `.env.example` dokumentiert. Für einen öffentlichen Betrieb werden HTTPS, Backups und abhängig vom Einsatz eine zusätzliche Zugriffsverwaltung empfohlen.
 
-Die optionalen Einstellungen stehen in `.env.example`. Für eigene Werte eine `.env` anlegen. `DATABASE_PATH` wird relativ zum Projektverzeichnis ausgewertet. `PORT` wird auch vom Vite-Proxy berücksichtigt. Der API-Server bindet standardmäßig nur an `127.0.0.1`.
-
-Die Datenbank und `.env` gehören nicht ins Repository. Für ein konsistentes Backup den Server beenden und `data/8a.sqlite` sichern; keine laufende WAL-Datenbank nur durch Kopieren der Hauptdatei sichern.
-
-## Build und Betrieb
+## Build und Tests
 
 ```sh
 npm run build
-npm start
-```
-
-Danach liefert derselbe Server Website und API unter **http://localhost:3001** aus. Für einen späteren öffentlichen Betrieb sind eine passende Domain, HTTPS und bei personenbezogenen Funktionen eine Zugriffsverwaltung gesondert einzurichten.
-
-## Prüfen
-
-```sh
 npm test
-npm run build
 npx playwright install chromium
 npm run test:e2e
 ```
 
-Die Servertests prüfen API, Datenbankzugriff und Persistenz über einen Neustart. Die Browsertests prüfen Desktop und Handy, Navigation, Dialoge, gespeicherte Einstellungen, Fehlerbehandlung und horizontales Überlaufen. Sie starten einen separaten Server auf Port 4173 mit einer eigenen Datenbank im Arbeitsspeicher. Screenshots liegen anschließend unter `test-results/`.
-
-Technische Referenzen: [Vite](https://vite.dev/guide/) und [Node.js SQLite](https://nodejs.org/api/sqlite.html).
+Die API-Tests prüfen Erstellung, Persistenz und Schreibschutz. Die Browser-Tests decken Dashboard, beide Werkzeuge, QR-Freigabe, Theme, Sidebar sowie Desktop- und Mobilansicht ab.
 # 8aProjekt
