@@ -48,3 +48,4 @@ npm run test:e2e
 
 Die API-Tests prüfen Erstellung, Persistenz und Schreibschutz. Die Browser-Tests decken Dashboard, beide Werkzeuge, QR-Freigabe, Theme, Sidebar sowie Desktop- und Mobilansicht ab.
 # 8aProjekt
+# 8aProjekt
