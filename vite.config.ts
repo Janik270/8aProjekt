@@ -8,7 +8,7 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       strictPort: true,
-      proxy: { '/api': `http://127.0.0.1:${env.PORT || 3001}` },
+      proxy: { '/api': { target: `http://127.0.0.1:${env.PORT || 3001}`, ws: true } },
     },
   };
 });

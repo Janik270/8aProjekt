@@ -5,7 +5,7 @@ test('tool dashboard replaces the old school modules and opens Group Writer', as
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await expect(page.getByRole('heading', { name: /Ideen brauchen/ })).toBeVisible();
-  await expect(page.locator('.tool-card')).toHaveCount(2);
+  await expect(page.locator('.tool-card')).toHaveCount(4);
   await expect(page.getByText('Stundenplan')).toHaveCount(0);
   await page.getByRole('button', { name: 'Group Writer öffnen' }).click();
   await expect(page.getByLabel('Dokumenttitel')).toBeVisible();
@@ -52,6 +52,18 @@ test('whiteboard supports view links and theme/sidebar preferences', async ({ pa
   await page.getByRole('button', { name: 'Nur ansehen' }).click();
   const viewerUrl = await page.getByLabel('Freigabelink').inputValue();
   expect(viewerUrl).not.toContain('?key=');
+});
+
+test('focus timer supports presets, custom minutes and pause', async ({ page }) => {
+  await page.goto('/#fokus');
+  await expect(page.getByRole('heading', { name: 'Fokus-Timer' })).toBeVisible();
+  await page.getByRole('button', { name: '5 Min.', exact: true }).click();
+  await page.getByRole('button', { name: 'Eine Minute hinzufügen' }).click();
+  await expect(page.getByText('06:00')).toBeVisible();
+  await page.getByRole('button', { name: 'Start' }).click();
+  await expect(page.getByRole('button', { name: 'Pause' })).toBeVisible();
+  await page.getByRole('button', { name: 'Pause' }).click();
+  await expect(page.getByRole('button', { name: 'Weiter' })).toBeVisible();
 });
 
 test('recent projects offer context actions, duplication and deletion', async ({ page }, testInfo) => {

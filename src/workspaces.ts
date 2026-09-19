@@ -5,8 +5,12 @@ const RECENT_KEY = '8a-recent-workspaces';
 export function parseRoute(): AppRoute {
   const hash = window.location.hash.slice(1);
   if (hash === 'about') return { page: 'about' };
+  if (hash === 'fokus') return { page: 'timer' };
   const [path, query = ''] = hash.split('?');
   const [type, id] = path.split('/');
+  if (type === 'ampel') {
+    return { page: 'traffic', id: id?.toUpperCase() || undefined, teacherKey: new URLSearchParams(query).get('key') || undefined };
+  }
   if (type === 'whiteboard' || type === 'writer') {
     return { page: 'tool', type, id: id || undefined, editKey: new URLSearchParams(query).get('key') || undefined };
   }
@@ -29,6 +33,10 @@ export function rememberWorkspace(workspace: Pick<Workspace, 'id' | 'type' | 'ti
   const next = [{ ...workspace, editKey }, ...readRecents().filter(item => item.id !== workspace.id)].slice(0, 8);
   localStorage.setItem(RECENT_KEY, JSON.stringify(next));
   window.dispatchEvent(new Event('recents-changed'));
+}
+
+export function updateRememberedWorkspace(workspace: Pick<Workspace, 'id' | 'type' | 'title' | 'updatedAt'>, editKey?: string) {
+  if (readRecents().some(item => item.id === workspace.id)) rememberWorkspace(workspace, editKey);
 }
 
 export function forgetWorkspace(id: string) {
@@ -60,7 +68,7 @@ export function subscribeWorkspace(id: string, onWorkspace: (workspace: Workspac
   return () => source.close();
 }
 
-export async function saveWorkspace(id: string, editKey: string, title: string, content: string) {
+export async function saveWorkspace(id: string, editKey: string, title: string, content?: string) {
   const response = await fetch(`/api/workspaces/${encodeURIComponent(id)}`, {
     method: 'PUT',
     headers: { 'content-type': 'application/json', 'x-edit-key': editKey },

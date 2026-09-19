@@ -11,7 +11,9 @@ if (existsSync(envFile)) loadEnvFile(envFile);
 const port = Number(process.env.PORT || 3001);
 const host = process.env.HOST || '127.0.0.1';
 const db = openDatabase();
-const server = createServer(createApp(db));
+const app = createApp(db);
+const server = createServer(app);
+const closeCollaboration = app.locals.collaboration.attach(server);
 server.listen(port, host, () => {
   console.log(`8a Projekt läuft unter http://${host}:${port}`);
 });
@@ -22,6 +24,7 @@ server.on('error', (error) => {
 });
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, () => {
+    closeCollaboration();
     server.close(() => {
       db.close();
       process.exit(0);

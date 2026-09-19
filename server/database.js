@@ -68,5 +68,74 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/8a.
       throw error;
     }
   }
+  if (version < 3) {
+    db.exec('ALTER TABLE workspaces ADD COLUMN y_state BLOB; PRAGMA user_version = 3;');
+  }
+  if (version < 4) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`
+        CREATE TABLE users (
+          id TEXT PRIMARY KEY,
+          username TEXT NOT NULL COLLATE NOCASE UNIQUE,
+          password_hash TEXT NOT NULL,
+          created_at TEXT NOT NULL
+        ) STRICT;
+        CREATE TABLE sessions (
+          token_hash TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          created_at TEXT NOT NULL,
+          expires_at TEXT NOT NULL
+        ) STRICT;
+        CREATE INDEX sessions_user_id ON sessions(user_id);
+        CREATE TABLE account_workspaces (
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+          role TEXT NOT NULL CHECK (role IN ('owner', 'edit', 'view')),
+          edit_key TEXT,
+          added_at TEXT NOT NULL,
+          PRIMARY KEY (user_id, workspace_id)
+        ) STRICT;
+        CREATE INDEX account_workspaces_workspace_id ON account_workspaces(workspace_id);
+        PRAGMA user_version = 4;
+        COMMIT;
+      `);
+    } catch (error) {
+      db.exec('ROLLBACK');
+      db.close();
+      throw error;
+    }
+  }
+  if (version < 5) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`
+        CREATE TABLE traffic_rooms (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL,
+          teacher_key_hash TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        ) STRICT;
+        CREATE TABLE traffic_students (
+          id TEXT PRIMARY KEY,
+          room_id TEXT NOT NULL REFERENCES traffic_rooms(id) ON DELETE CASCADE,
+          name TEXT NOT NULL COLLATE NOCASE,
+          color TEXT CHECK (color IN ('red', 'yellow', 'green')),
+          student_key_hash TEXT NOT NULL,
+          joined_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE (room_id, name)
+        ) STRICT;
+        CREATE INDEX traffic_students_room_id ON traffic_students(room_id);
+        PRAGMA user_version = 5;
+        COMMIT;
+      `);
+    } catch (error) {
+      db.exec('ROLLBACK');
+      db.close();
+      throw error;
+    }
+  }
   return db;
 }

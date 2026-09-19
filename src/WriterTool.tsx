@@ -1,72 +1,34 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
-import { Bold, Cloud, CloudOff, Eye, Heading1, Heading2, Italic, List, ListOrdered, Minus, Redo2, Share2, Strikethrough, Undo2 } from 'lucide-react';
+import Collaboration from '@tiptap/extension-collaboration';
+import CollaborationCaret from '@tiptap/extension-collaboration-caret';
+import { Bold, Eye, Heading1, Heading2, Italic, List, ListOrdered, Minus, Redo2, Share2, Strikethrough, Undo2 } from 'lucide-react';
 import type { Workspace } from './types';
-import { rememberWorkspace, saveWorkspace, subscribeWorkspace } from './workspaces';
+import { CollaborationBar, useLiveSession, useLiveTitle } from './LiveWorkspace';
 import ShareDialog from './ShareDialog';
 
 type Props = { initial: Workspace; editKey?: string; onTitle: (title: string) => void };
 
 export default function WriterTool({ initial, editKey, onTitle }: Props) {
-  const [title, setTitle] = useState(initial.title);
+  const session = useLiveSession();
+  const [title, updateTitle] = useLiveTitle(onTitle);
   const [shareOpen, setShareOpen] = useState(false);
-  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error'>('saved');
-  const titleRef = useRef(initial.title);
-  const contentRef = useRef(initial.content);
-  const updatedAtRef = useRef(initial.updatedAt);
-  const timerRef = useRef<number | undefined>(undefined);
   const editKeyRef = useRef(editKey);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const readOnly = !editKey;
 
-  const persist = useCallback(async () => {
-    if (!editKeyRef.current) return;
-    setSaveState('saving');
-    try {
-      const result = await saveWorkspace(initial.id, editKeyRef.current, titleRef.current, contentRef.current);
-      updatedAtRef.current = result.updatedAt;
-      rememberWorkspace({ ...initial, title: titleRef.current, updatedAt: result.updatedAt }, editKeyRef.current);
-      setSaveState('saved');
-    } catch { setSaveState('error'); }
-  }, [initial]);
-
-  const queueSave = useCallback(() => {
-    window.clearTimeout(timerRef.current);
-    timerRef.current = window.setTimeout(() => void persist(), 150);
-  }, [persist]);
-
   const editor = useEditor({
-    extensions: [StarterKit],
-    content: initial.content,
+    extensions: [
+      StarterKit.configure({ undoRedo: false }),
+      Collaboration.configure({ document: session.doc }),
+      CollaborationCaret.configure({ provider: session, user: { name: session.name, color: session.color } }),
+    ],
     editable: !readOnly,
     editorProps: { attributes: { class: 'writer-prose', 'aria-label': 'Gemeinsames Dokument' } },
-    onUpdate: ({ editor: current }) => { contentRef.current = current.getHTML(); queueSave(); },
   });
 
   useEffect(() => { editor?.setEditable(!readOnly); }, [editor, readOnly]);
-  useEffect(() => () => window.clearTimeout(timerRef.current), []);
-  useEffect(() => {
-    return subscribeWorkspace(initial.id, remote => {
-      if (remote.updatedAt < updatedAtRef.current) return;
-      updatedAtRef.current = remote.updatedAt;
-      if (remote.content !== contentRef.current) {
-        window.clearTimeout(timerRef.current);
-        contentRef.current = remote.content;
-        editor?.commands.setContent(remote.content, { emitUpdate: false });
-      }
-      if (remote.title !== titleRef.current) {
-        titleRef.current = remote.title;
-        setTitle(remote.title);
-        onTitle(remote.title);
-      }
-    });
-  }, [editor, initial.id, onTitle]);
-
-  const updateTitle = (value: string) => {
-    setTitle(value); titleRef.current = value; onTitle(value);
-    if (value.trim()) queueSave();
-  };
   const downloadFile = (content: string, extension: string, mimeType: string) => {
     const anchor = document.createElement('a');
     anchor.href = URL.createObjectURL(new Blob([content], { type: mimeType }));
@@ -90,9 +52,7 @@ export default function WriterTool({ initial, editKey, onTitle }: Props) {
       const escape = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
       html = raw.split(/\n{2,}/).map(block => `<p>${escape(block).replaceAll('\n', '<br>')}</p>`).join('');
     }
-    contentRef.current = html || '<p></p>';
-    editor.commands.setContent(contentRef.current, { emitUpdate: false });
-    queueSave();
+    editor.commands.setContent(html || '<p></p>');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -103,14 +63,12 @@ export default function WriterTool({ initial, editKey, onTitle }: Props) {
       if (action === 'open') fileInputRef.current?.click();
       if (action === 'text') downloadFile(editor?.getText() || '', 'txt', 'text/plain');
       if (action === 'clear' && editor && editKeyRef.current && window.confirm('Möchtest du wirklich den gesamten Dokumentinhalt löschen?')) {
-        contentRef.current = '<p></p>';
-        editor.commands.setContent(contentRef.current, { emitUpdate: false });
-        queueSave();
+        editor.commands.clearContent();
       }
     };
     window.addEventListener('8a:writer-action', handleAction);
     return () => window.removeEventListener('8a:writer-action', handleAction);
-  }, [editor, queueSave, title]);
+  }, [editor, title]);
 
   const ToolButton = ({ label, active = false, onClick, children }: { label: string; active?: boolean; onClick: () => void; children: React.ReactNode }) =>
     <button className={active ? 'active' : ''} aria-label={label} title={label} onClick={onClick} disabled={readOnly}>{children}</button>;
@@ -123,10 +81,11 @@ export default function WriterTool({ initial, editKey, onTitle }: Props) {
         <div><span className="tool-label">GROUP WRITER</span><input aria-label="Dokumenttitel" value={title} onChange={event => updateTitle(event.target.value)} readOnly={readOnly} /></div>
       </div>
       <div className="tool-actions">
-        <span className={`save-status ${saveState}`}>{readOnly ? <><Eye size={15} /> Nur ansehen</> : saveState === 'error' ? <><CloudOff size={15} /> Nicht gespeichert</> : <><Cloud size={15} /> {saveState === 'saving' ? 'Speichert …' : 'Gespeichert'}</>}</span>
+        {readOnly && <span className="save-status"><Eye size={15} /> Nur ansehen</span>}
         <button className="primary-button compact" onClick={() => setShareOpen(true)}><Share2 size={16} /> Teilen</button>
       </div>
     </div>
+    <CollaborationBar />
     {readOnly && <div className="readonly-banner"><Eye size={16} /> Dieses Dokument ist schreibgeschützt. Änderungen siehst du automatisch.</div>}
     <div className="writer-workspace">
       <div className="writer-toolbar" aria-label="Text formatieren">

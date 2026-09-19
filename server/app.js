@@ -3,6 +3,9 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { projectRoot } from './database.js';
+import { createCollaboration } from './collaboration.js';
+import { installAccounts, saveOwnedWorkspace } from './accounts.js';
+import { installTraffic } from './traffic.js';
 
 const TOOL_TYPES = new Set(['whiteboard', 'writer']);
 const MAX_CONTENT_LENGTH = 8 * 1024 * 1024;
@@ -31,6 +34,7 @@ function publicWorkspace(row) {
 
 export function createApp(db, { serveFrontend = true } = {}) {
   const app = express();
+  app.locals.collaboration = createCollaboration(db);
   const workspaceStreams = new Map();
 
   const broadcastWorkspace = (id, event, payload, close = false) => {
@@ -55,6 +59,8 @@ export function createApp(db, { serveFrontend = true } = {}) {
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
+  installAccounts(app, db, hasValidKey);
+  installTraffic(app, db, { hashKey, hasValidKey });
   app.get('/api/health', (_req, res) => {
     db.prepare('SELECT 1').get();
     res.json({ status: 'ok', database: 'connected' });
@@ -98,10 +104,18 @@ export function createApp(db, { serveFrontend = true } = {}) {
     const content = type === 'whiteboard'
       ? JSON.stringify({ elements: [], appState: { viewBackgroundColor: '#f8f9fc' }, files: {} })
       : '<h1>Gemeinsam losschreiben</h1><p>Tippe hier, um euer Dokument zu beginnen …</p>';
-    db.prepare(`
-      INSERT INTO workspaces (id, type, title, content, edit_key_hash, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(id, type, title, content, hashKey(editKey), now, now);
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.prepare(`
+        INSERT INTO workspaces (id, type, title, content, edit_key_hash, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(id, type, title, content, hashKey(editKey), now, now);
+      saveOwnedWorkspace(db, req.user, id, editKey, now);
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
     res.status(201).json({ id, type, title, editKey, createdAt: now, updatedAt: now });
   });
   app.get('/api/workspaces/:id', (req, res) => {
@@ -120,6 +134,10 @@ export function createApp(db, { serveFrontend = true } = {}) {
     if (!title || title.length > 120 || content.length > MAX_CONTENT_LENGTH) {
       return res.status(400).json({ error: 'Titel oder Inhalt ist ungültig.' });
     }
+    if (row.y_state && content !== row.content) {
+      return res.status(409).json({ error: 'Dieses Projekt wird live bearbeitet. Bitte verwende den Editor.' });
+    }
+    app.locals.collaboration.rename(row.id, title);
     const updatedAt = new Date().toISOString();
     db.prepare('UPDATE workspaces SET title = ?, content = ?, updated_at = ? WHERE id = ?')
       .run(title, content, updatedAt, row.id);
@@ -133,6 +151,7 @@ export function createApp(db, { serveFrontend = true } = {}) {
     if (!hasValidKey(row.edit_key_hash, req.get('x-edit-key'))) {
       return res.status(403).json({ error: 'Zum Löschen wird der Bearbeitungslink benötigt.' });
     }
+    app.locals.collaboration.remove(row.id);
     db.prepare('DELETE FROM workspaces WHERE id = ?').run(row.id);
     broadcastWorkspace(row.id, 'deleted', { id: row.id }, true);
     res.status(204).end();
