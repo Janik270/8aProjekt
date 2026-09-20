@@ -7,6 +7,7 @@ import { getSchema } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { prosemirrorJSONToYDoc, yDocToProsemirrorJSON } from '@tiptap/y-tiptap';
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { createSocketGate, hasAllowedWebSocketOrigin, upgradeClientIp } from './security.js';
 
 const extensions = [StarterKit.configure({ undoRedo: false })];
 const schema = getSchema(extensions);
@@ -15,9 +16,19 @@ const decode = data => new Uint8Array(Buffer.from(data, 'base64'));
 const send = (socket, message) => {
   if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(message));
 };
+const MAX_WEBSOCKET_PAYLOAD = 4 * 1024 * 1024;
+const MAX_YJS_UPDATE = 1024 * 1024;
+const MAX_YJS_DOCUMENT = 6 * 1024 * 1024;
 
-export function createCollaboration(db) {
+export function createCollaboration(db, {
+  maxPayload = MAX_WEBSOCKET_PAYLOAD,
+  maxUpdateBytes = MAX_YJS_UPDATE,
+  maxDocumentBytes = MAX_YJS_DOCUMENT,
+  maxConnectionsPerIp = 60,
+  maxConnectionsTotal = 600,
+} = {}) {
   const rooms = new Map();
+  const socketGate = createSocketGate({ maxPerIp: maxConnectionsPerIp, maxTotal: maxConnectionsTotal });
   const getRoom = row => {
     if (rooms.has(row.id)) return rooms.get(row.id);
     row = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(row.id);
@@ -39,7 +50,7 @@ export function createCollaboration(db) {
     }
     const awareness = new Awareness(doc);
     awareness.setLocalState(null);
-    const room = { doc, awareness, sockets: new Set() };
+    const room = { doc, awareness, sockets: new Set(), stateBytes: Y.encodeStateAsUpdate(doc).byteLength };
     rooms.set(row.id, room);
     doc.on('update', update => {
       const title = String(doc.getMap('meta').get('title') || row.title).trim().slice(0, 120);
@@ -49,8 +60,10 @@ export function createCollaboration(db) {
           const left = `${a.index || ''}:${a.id}`, right = `${b.index || ''}:${b.id}`;
           return left < right ? -1 : left > right ? 1 : 0;
         }), appState: doc.getMap('appState').toJSON(), files: doc.getMap('files').toJSON() });
+      const encodedState = Y.encodeStateAsUpdate(doc);
+      room.stateBytes = encodedState.byteLength;
       db.prepare('UPDATE workspaces SET y_state = ?, title = ?, content = ?, updated_at = ? WHERE id = ?')
-        .run(Y.encodeStateAsUpdate(doc), title, content, new Date().toISOString(), row.id);
+        .run(encodedState, title, content, new Date().toISOString(), row.id);
       for (const socket of room.sockets) send(socket, { type: 'update', data: encode(update) });
     });
     awareness.on('update', ({ added, updated, removed }) => {
@@ -78,14 +91,25 @@ export function createCollaboration(db) {
       room.doc.destroy();
     },
     attach(server) {
-      const wss = new WebSocketServer({ noServer: true, maxPayload: 12 * 1024 * 1024 });
+      const wss = new WebSocketServer({ noServer: true, maxPayload });
       server.on('upgrade', (request, socket, head) => {
+        const releaseConnection = socketGate.acquire(upgradeClientIp(request));
+        if (!releaseConnection) {
+          socket.end('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n');
+          return;
+        }
+        if (!hasAllowedWebSocketOrigin(request)) {
+          releaseConnection();
+          socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
+          return;
+        }
         const path = new URL(request.url, 'http://localhost').pathname;
         const match = /^\/api\/workspaces\/([^/]+)\/live$/.exec(path);
-        if (!match) return socket.destroy();
+        if (!match) { releaseConnection(); return socket.destroy(); }
         const row = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(match[1]);
-        if (!row) return socket.destroy();
+        if (!row) { releaseConnection(); return socket.destroy(); }
         wss.handleUpgrade(request, socket, head, ws => {
+          ws.once('close', releaseConnection);
           let room;
           let clientID;
           let canEdit = false;
@@ -113,7 +137,11 @@ export function createCollaboration(db) {
                 send(ws, { type: 'awareness', data: encode(encodeAwarenessUpdate(room.awareness, [...room.awareness.getStates().keys()])) });
               } else if (message.type === 'update') {
                 if (!canEdit) return ws.close(4003, 'Nur ansehen');
-                Y.applyUpdate(room.doc, decode(message.data), ws);
+                const update = decode(message.data);
+                if (update.byteLength > maxUpdateBytes || room.stateBytes + update.byteLength > maxDocumentBytes) {
+                  return ws.close(4009, 'Dokument ist zu groß');
+                }
+                Y.applyUpdate(room.doc, update, ws);
                 send(ws, { type: 'saved', sequence: message.sequence });
               } else if (message.type === 'awareness') {
                 const update = decode(message.data);

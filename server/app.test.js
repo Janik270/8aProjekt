@@ -1,7 +1,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openDatabase } from './database.js';
@@ -10,10 +10,14 @@ import { createApp } from './app.js';
 let db;
 let server;
 let baseUrl;
+let ideasDirectory;
+let ideasFile;
 
 before(async () => {
   db = openDatabase(':memory:');
-  server = createApp(db, { serveFrontend: false }).listen(0, '127.0.0.1');
+  ideasDirectory = mkdtempSync(join(tmpdir(), 'scool-tools-ideas-test-'));
+  ideasFile = join(ideasDirectory, 'ideen.txt');
+  server = createApp(db, { serveFrontend: false, ideasFile }).listen(0, '127.0.0.1');
   await once(server, 'listening');
   baseUrl = `http://127.0.0.1:${server.address().port}`;
 });
@@ -23,6 +27,7 @@ after(async () => {
     await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   }
   if (db?.isOpen) db.close();
+  if (ideasDirectory) rmSync(ideasDirectory, { recursive: true, force: true });
 });
 
 test('API returns the tool hub settings from SQLite', async () => {
@@ -32,7 +37,7 @@ test('API returns the tool hub settings from SQLite', async () => {
   const site = await response.json();
   assert.equal(site.schoolName, 'Realschule Zusmarshausen');
   assert.equal(site.className, '8a');
-  assert.equal(site.projectName, '8a Tools');
+  assert.equal(site.projectName, 'Scool Tools');
   assert.equal('modules' in site, false);
 });
 
@@ -40,6 +45,21 @@ test('API reflects persisted content rather than a static response', async () =>
   db.prepare('UPDATE site_settings SET welcome_text = ? WHERE id = 1').run('Hallo aus der Datenbank!');
   const site = await fetch(`${baseUrl}/api/site`).then(response => response.json());
   assert.equal(site.welcomeText, 'Hallo aus der Datenbank!');
+});
+
+test('ideas can be submitted and are validated', async () => {
+  const response = await fetch(`${baseUrl}/api/ideas`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: 'Bitte ergänzt ein Quiz-Tool.' }),
+  });
+  assert.equal(response.status, 201);
+  const saved = readFileSync(ideasFile, 'utf8');
+  assert.match(saved, /^\[\d{4}-\d{2}-\d{2}T/);
+  assert.match(saved, /Bitte ergänzt ein Quiz-Tool\.\n\n---/);
+
+  const empty = await fetch(`${baseUrl}/api/ideas`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ message: '   ' }),
+  });
+  assert.equal(empty.status, 400);
 });
 
 test('health check verifies database connection', async () => {
@@ -231,7 +251,7 @@ test('database initialization preserves edits across restarts without duplicate 
     assert.equal(persistentDb.prepare('SELECT welcome_text FROM site_settings').get().welcome_text, 'Bleibt gespeichert');
     assert.equal(persistentDb.prepare('SELECT count(*) AS count FROM workspaces').get().count, 0);
     assert.equal(persistentDb.prepare("SELECT count(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'modules'").get().count, 0);
-    assert.equal(persistentDb.prepare('PRAGMA user_version').get().user_version, 5);
+    assert.equal(persistentDb.prepare('PRAGMA user_version').get().user_version, 7);
   } finally {
     if (persistentDb?.isOpen) persistentDb.close();
     rmSync(directory, { recursive: true, force: true });

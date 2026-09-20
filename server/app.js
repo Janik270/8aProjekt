@@ -1,14 +1,16 @@
 import express from 'express';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { appendFile, mkdir } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { projectRoot } from './database.js';
 import { createCollaboration } from './collaboration.js';
 import { installAccounts, saveOwnedWorkspace } from './accounts.js';
 import { installTraffic } from './traffic.js';
+import { createActiveConnectionGate, createSecurity, securityHeaders } from './security.js';
 
 const TOOL_TYPES = new Set(['whiteboard', 'writer']);
-const MAX_CONTENT_LENGTH = 8 * 1024 * 1024;
+const MAX_CONTENT_LENGTH = 4 * 1024 * 1024;
 
 function hashKey(value) {
   return createHash('sha256').update(value).digest('hex');
@@ -32,9 +34,18 @@ function publicWorkspace(row) {
   };
 }
 
-export function createApp(db, { serveFrontend = true } = {}) {
+export function createApp(db, {
+  serveFrontend = true,
+  ideasFile = join(projectRoot, 'data', 'ideen.txt'),
+  securityOptions,
+  collaborationOptions,
+  liveConnectionOptions,
+} = {}) {
   const app = express();
-  app.locals.collaboration = createCollaboration(db);
+  app.set('trust proxy', 'loopback');
+  app.locals.collaboration = createCollaboration(db, collaborationOptions);
+  const security = createSecurity(db, securityOptions);
+  const liveConnectionGate = createActiveConnectionGate({ maxPerIp: 60, maxTotal: 600, ...liveConnectionOptions });
   const workspaceStreams = new Map();
 
   const broadcastWorkspace = (id, event, payload, close = false) => {
@@ -49,18 +60,20 @@ export function createApp(db, { serveFrontend = true } = {}) {
   };
 
   app.disable('x-powered-by');
-  app.use(express.json({ limit: '9mb' }));
-  app.use((_req, res, next) => {
-    res.setHeader('X-Content-Type-Options', 'nosniff');
-    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    next();
-  });
+  app.use(securityHeaders());
   app.use('/api', (_req, res, next) => {
     res.setHeader('Cache-Control', 'no-store');
     next();
   });
-  installAccounts(app, db, hasValidKey);
-  installTraffic(app, db, { hashKey, hasValidKey });
+  app.use('/api', security.apiLimiter);
+  app.use('/api', (req, res, next) => {
+    if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return next();
+    security.sameOrigin(req, res, () => security.writeLimiter(req, res, next));
+  });
+  // Reject abusive API/write bursts before spending memory and CPU on JSON parsing.
+  app.use(express.json({ limit: '5mb', strict: true }));
+  installAccounts(app, db, hasValidKey, security);
+  installTraffic(app, db, { hashKey, hasValidKey, security, liveConnectionGate });
   app.get('/api/health', (_req, res) => {
     db.prepare('SELECT 1').get();
     res.json({ status: 'ok', database: 'connected' });
@@ -74,7 +87,18 @@ export function createApp(db, { serveFrontend = true } = {}) {
     if (!settings) throw new Error('Site settings are missing.');
     res.json({ ...settings });
   });
-  app.get('/api/workspaces/:id/events', (req, res) => {
+  app.post('/api/ideas', security.ideaLimiter, security.ideaQuota, async (req, res) => {
+    const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
+    if (!message || message.length > 1000) {
+      return res.status(400).json({ error: 'Bitte gib eine Idee mit höchstens 1000 Zeichen ein.' });
+    }
+    const id = randomUUID();
+    const createdAt = new Date().toISOString();
+    await mkdir(dirname(ideasFile), { recursive: true });
+    await appendFile(ideasFile, `[${createdAt}]\n${message}\n\n---\n\n`, 'utf8');
+    res.status(201).json({ id, createdAt });
+  });
+  app.get('/api/workspaces/:id/events', liveConnectionGate, (req, res) => {
     const row = db.prepare('SELECT * FROM workspaces WHERE id = ?').get(req.params.id);
     if (!row) return res.status(404).json({ error: 'Dieser Arbeitsbereich wurde nicht gefunden.' });
     res.setHeader('Content-Type', 'text/event-stream');
@@ -94,7 +118,7 @@ export function createApp(db, { serveFrontend = true } = {}) {
       if (streams.size === 0) workspaceStreams.delete(row.id);
     });
   });
-  app.post('/api/workspaces', (req, res) => {
+  app.post('/api/workspaces', security.workspaceCreateLimiter, security.workspaceQuota, security.workspaceCapacity, security.accountWorkspaceCapacity, (req, res) => {
     const type = typeof req.body?.type === 'string' ? req.body.type : '';
     if (!TOOL_TYPES.has(type)) return res.status(400).json({ error: 'Unbekanntes Werkzeug.' });
     const id = randomUUID();
@@ -165,10 +189,12 @@ export function createApp(db, { serveFrontend = true } = {}) {
     app.use(express.static(frontendPath));
     app.get('/', (_req, res) => res.sendFile(join(frontendPath, 'index.html')));
   } else {
-    app.get('/', (_req, res) => res.type('text').send('8a API läuft. Entwicklung: http://localhost:5173 · Für die fertige Website zuerst npm run build ausführen.'));
+    app.get('/', (_req, res) => res.type('text').send('Scool Tools API läuft. Entwicklung: http://localhost:5173 · Für die fertige Website zuerst npm run build ausführen.'));
   }
   app.use((error, _req, res, _next) => {
     console.error('Serverfehler:', error.message);
+    if (error?.type === 'entity.too.large') return res.status(413).json({ error: 'Die Anfrage ist zu groß.' });
+    if (error instanceof SyntaxError && error?.type === 'entity.parse.failed') return res.status(400).json({ error: 'Die Anfrage enthält ungültiges JSON.' });
     res.status(500).json({ error: 'Die Daten konnten gerade nicht geladen werden. Bitte versuche es noch einmal.' });
   });
   return app;

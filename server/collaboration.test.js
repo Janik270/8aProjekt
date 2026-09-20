@@ -8,9 +8,9 @@ import { Awareness, encodeAwarenessUpdate, applyAwarenessUpdate } from 'y-protoc
 import { openDatabase } from './database.js';
 import { createApp } from './app.js';
 
-async function fixture(t, type = 'writer') {
+async function fixture(t, type = 'writer', appOptions = {}) {
   const db = openDatabase(':memory:');
-  const app = createApp(db, { serveFrontend: false });
+  const app = createApp(db, { serveFrontend: false, ...appOptions });
   const server = createServer(app);
   const closeLive = app.locals.collaboration.attach(server);
   server.listen(0, '127.0.0.1');
@@ -130,4 +130,41 @@ test('whiteboard updates merge separate shapes and persist deletion tombstones',
   await eventually(() => bob.doc.getMap('elements').get('a').isDeleted);
   const scene = JSON.parse(db.prepare('SELECT content FROM workspaces WHERE id = ?').get(workspace.id).content);
   assert.equal(scene.elements.filter(element => !element.isDeleted).length, 1);
+});
+
+test('thirty live clients from one school IP can collaborate simultaneously', async t => {
+  const { connect } = await fixture(t);
+  const clients = await Promise.all(Array.from({ length: 30 }, () => connect()));
+  assert.equal(clients.length, 30);
+  assert.ok(clients.every(client => client.ws.readyState === WebSocket.OPEN));
+});
+
+test('excess WebSocket connections from one IP are rejected before upgrade', async t => {
+  const { connect, base, workspace } = await fixture(t, 'writer', {
+    collaborationOptions: { maxConnectionsPerIp: 2, maxConnectionsTotal: 20 },
+  });
+  await Promise.all([connect(), connect()]);
+  const excess = new WebSocket(`${base.replace('http', 'ws')}/api/workspaces/${workspace.id}/live`);
+  const status = await new Promise((resolve, reject) => {
+    excess.once('unexpected-response', (_request, response) => {
+      response.resume();
+      resolve(response.statusCode);
+    });
+    excess.once('open', () => reject(new Error('Excess WebSocket was unexpectedly accepted')));
+    excess.once('error', reject);
+  });
+  assert.equal(status, 429);
+});
+
+test('oversized Yjs updates are rejected before persistence', async t => {
+  const { connect, workspace, db } = await fixture(t, 'writer', { collaborationOptions: { maxUpdateBytes: 256 } });
+  const editor = await connect(workspace.editKey);
+  const before = db.prepare('SELECT y_state FROM workspaces WHERE id = ?').get(workspace.id).y_state;
+  const vector = Y.encodeStateVector(editor.doc);
+  editor.doc.getMap('oversized').set('payload', 'x'.repeat(2_000));
+  const closed = once(editor.ws, 'close');
+  editor.send({ type: 'update', data: Buffer.from(Y.encodeStateAsUpdate(editor.doc, vector)).toString('base64') });
+  assert.equal((await closed)[0], 4009);
+  const after = db.prepare('SELECT y_state FROM workspaces WHERE id = ?').get(workspace.id).y_state;
+  assert.deepEqual(after, before);
 });

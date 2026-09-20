@@ -27,6 +27,49 @@ test('tool dashboard replaces the old school modules and opens Group Writer', as
   expect(errors).toEqual([]);
 });
 
+test('project page uses the Scool Tools brand and accepts ideas', async ({ page }) => {
+  await page.goto('/#about');
+  await expect(page).toHaveTitle(/Scool Tools/);
+  await expect(page.getByText('Ideen gerne unten eintragen.')).toBeVisible();
+  await page.getByLabel('Deine Idee').fill('Ein Quiz-Tool wäre toll.');
+  await page.getByRole('button', { name: 'Idee einreichen' }).click();
+  await expect(page.getByText('Danke! Deine Idee wurde eingereicht.')).toBeVisible();
+  await expect(page.getByLabel('Deine Idee')).toHaveValue('');
+});
+
+test('imprint shows the KidsLab legal entity and register details', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('link', { name: 'Impressum' }).last().click();
+
+  await expect(page).toHaveURL(/#impressum$/);
+  await expect(page.getByRole('heading', { name: 'Impressum', exact: true })).toBeVisible();
+  await expect(page.getByText('KidsLab gGmbH', { exact: true })).toBeVisible();
+  await expect(page.getByText('Neidhartstr. 2')).toBeVisible();
+  await expect(page.getByText('Gregor Walter')).toBeVisible();
+  await expect(page.getByText('Registernummer: 34884')).toBeVisible();
+  await expect(page.getByRole('link', { name: /Vollständiges KidsLab-Impressum/ })).toHaveAttribute('href', 'https://kidslab.de/ueber-kidslab/impressum/');
+});
+
+test('mobile sidebar keeps every tool reachable on short screens', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Navigation öffnen' }).click();
+
+  const sidebar = page.locator('.sidebar');
+  const navigation = page.locator('.navigation');
+  const sidebarScrollable = await sidebar.evaluate(element => element.scrollHeight > element.clientHeight);
+  const navigationHasNestedScroll = await navigation.evaluate(element => element.scrollHeight > element.clientHeight);
+
+  expect(sidebarScrollable).toBe(true);
+  expect(navigationHasNestedScroll).toBe(false);
+
+  for (const name of ['Excalidraw', 'Group Writer', 'Ampel-Tool', 'Fokus-Timer']) {
+    const tool = navigation.getByLabel(name, { exact: true });
+    await tool.scrollIntoViewIfNeeded();
+    await expect(tool).toBeInViewport({ ratio: 1 });
+  }
+});
+
 test('whiteboard supports view links and theme/sidebar preferences', async ({ page }, testInfo) => {
   await page.goto('/');
   const mobile = testInfo.project.name === 'mobile';

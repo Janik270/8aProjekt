@@ -5,6 +5,7 @@ const RECENT_KEY = '8a-recent-workspaces';
 export function parseRoute(): AppRoute {
   const hash = window.location.hash.slice(1);
   if (hash === 'about') return { page: 'about' };
+  if (hash === 'impressum') return { page: 'imprint' };
   if (hash === 'fokus') return { page: 'timer' };
   const [path, query = ''] = hash.split('?');
   const [type, id] = path.split('/');

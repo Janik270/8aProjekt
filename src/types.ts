@@ -30,6 +30,7 @@ export type AccountData = { user: AccountUser; projects: AccountProject[] };
 export type AppRoute =
   | { page: 'home' }
   | { page: 'about' }
+  | { page: 'imprint' }
   | { page: 'timer' }
   | { page: 'tool'; type: ToolKind; id?: string; editKey?: string }
   | { page: 'traffic'; id?: string; teacherKey?: string };

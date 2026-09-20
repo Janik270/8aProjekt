@@ -18,7 +18,7 @@ export default function SchoolIllustration() {
         <rect x="18" y="20" width="160" height="190" fill="url(#paper-grid)" />
         <path d="M33 0v228" stroke="#F0B8BF" strokeWidth="1.3" />
         <path d="M62 53h92M62 64h65" stroke="#ABB9D4" strokeWidth="4" strokeLinecap="round" />
-        <text x="53" y="160" fill="#4263EB" fontFamily="Manrope Variable, sans-serif" fontSize="83" fontWeight="800" letterSpacing="-7">8a</text>
+        <text x="53" y="160" fill="#4263EB" fontFamily="Manrope Variable, sans-serif" fontSize="83" fontWeight="800" letterSpacing="-3">S</text>
         <path d="M58 173c28 7 64 5 90-3" stroke="#FFCA73" strokeWidth="7" strokeLinecap="round" />
         <g stroke="#677BAD" strokeWidth="4" strokeLinecap="round">
           <path d="M-6 33h17M-6 65h17M-6 97h17M-6 129h17M-6 161h17M-6 193h17" />
@@ -39,7 +39,7 @@ export default function SchoolIllustration() {
       <g transform="translate(72 249) rotate(-7)" filter="url(#paper-shadow)">
         <rect width="118" height="39" rx="19.5" fill="white" />
         <circle cx="22" cy="19.5" r="5" fill="#79A994" />
-        <text x="36" y="24" fill="#56637D" fontFamily="DM Sans Variable, sans-serif" fontSize="12" fontWeight="600">Team 8a</text>
+        <text x="36" y="24" fill="#56637D" fontFamily="DM Sans Variable, sans-serif" fontSize="12" fontWeight="600">Scool Tools</text>
       </g>
       <path d="m78 73 3-10 3 10 10 3-10 3-3 10-3-10-10-3 10-3Z" fill="#E8B667" />
       <path d="m352 209 3-8 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="#8198E9" />

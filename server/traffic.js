@@ -22,7 +22,7 @@ function publicStudent(row) {
   };
 }
 
-export function installTraffic(app, db, { hashKey, hasValidKey }) {
+export function installTraffic(app, db, { hashKey, hasValidKey, security, liveConnectionGate }) {
   const streams = new Map();
   const roomById = db.prepare('SELECT * FROM traffic_rooms WHERE id = ?');
 
@@ -32,7 +32,7 @@ export function installTraffic(app, db, { hashKey, hasValidKey }) {
     for (const response of listeners) response.write(`event: changed\ndata: ${JSON.stringify({ roomId })}\n\n`);
   };
 
-  app.post('/api/traffic-rooms', (req, res) => {
+  app.post('/api/traffic-rooms', security.trafficCreateLimiter, security.trafficRoomQuota, security.trafficRoomCapacity, (req, res) => {
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     if (!name || name.length > 60) return res.status(400).json({ error: 'Bitte gib einen Klassennamen mit höchstens 60 Zeichen ein.' });
 
@@ -47,7 +47,7 @@ export function installTraffic(app, db, { hashKey, hasValidKey }) {
     res.status(201).json({ id, name, teacherKey, createdAt: now });
   });
 
-  app.get('/api/traffic-rooms/:id/events', (req, res) => {
+  app.get('/api/traffic-rooms/:id/events', liveConnectionGate, (req, res) => {
     const room = roomById.get(req.params.id.toUpperCase());
     if (!room) return res.status(404).json({ error: 'Diese Klasse wurde nicht gefunden.' });
     res.setHeader('Content-Type', 'text/event-stream');
@@ -85,7 +85,7 @@ export function installTraffic(app, db, { hashKey, hasValidKey }) {
     res.json(publicRoom(room));
   });
 
-  app.post('/api/traffic-rooms/:id/students', (req, res) => {
+  app.post('/api/traffic-rooms/:id/students', security.trafficJoinLimiter, security.trafficJoinQuota, (req, res) => {
     const room = roomById.get(req.params.id.toUpperCase());
     if (!room) return res.status(404).json({ error: 'Diese Klasse wurde nicht gefunden.' });
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';

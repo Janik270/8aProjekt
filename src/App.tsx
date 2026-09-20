@@ -2,8 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useState } from 'react';
 import {
   ArrowRight, ArrowUpRight, Brush, Check, ChevronRight, CircleHelp, Copy, Download, ExternalLink,
   FileImage, FilePlus2, FileText, FileType2, FileUp, Focus, FolderOpen, Grid3X3, Heart, Home,
-  Info, LayoutGrid, Menu, Moon, MoreVertical, PanelLeftClose, PanelLeftOpen, Plus,
-  School, Sparkles, Sun, TimerReset, TrafficCone, Trash2, Users, WandSparkles, X,
+  Info, LayoutGrid, Lightbulb, Menu, Moon, MoreVertical, PanelLeftClose, PanelLeftOpen, Plus,
+  Scale, School, Send, Sparkles, Sun, TimerReset, TrafficCone, Trash2, Users, WandSparkles, X,
 } from 'lucide-react';
 import type { AppRoute, RecentWorkspace, SiteData, ToolKind, Workspace } from './types';
 import LiveWorkspace from './LiveWorkspace';
@@ -104,7 +104,7 @@ export default function App() {
     return <TrafficStudentPage key={route.id} roomId={route.id} />;
   }
 
-  const currentName = route.page === 'home' ? 'Alle Tools' : route.page === 'about' ? 'Über das Projekt' : route.page === 'traffic' ? 'Ampel-Tool' : route.page === 'timer' ? 'Fokus-Timer' : toolInfo[route.type].name;
+  const currentName = route.page === 'home' ? 'Alle Tools' : route.page === 'about' ? 'Über das Projekt' : route.page === 'imprint' ? 'Impressum' : route.page === 'traffic' ? 'Ampel-Tool' : route.page === 'timer' ? 'Fokus-Timer' : toolInfo[route.type].name;
   const toolPage = route.page === 'tool';
 
   return <div className={`app ${collapsed ? 'sidebar-collapsed' : ''} ${mobileOpen ? 'sidebar-open' : ''} ${toolPage ? 'tool-active' : ''}`}>
@@ -112,7 +112,7 @@ export default function App() {
     {mobileOpen && <button className="sidebar-backdrop" onClick={() => setMobileOpen(false)} tabIndex={-1} aria-label="Menü schließen" />}
     <aside className="sidebar" id="sidebar" aria-label="Hauptnavigation" aria-hidden={mobile && !mobileOpen || undefined} inert={mobile && !mobileOpen}>
       <div className="sidebar-brand">
-        <a className="brand" href="#start" onClick={() => setMobileOpen(false)}><span className="brand-mark">8a<span className="brand-dot">.</span></span><span className="brand-copy">8a Tools<span>GEMEINSAM KREATIV</span></span></a>
+        <a className="brand" href="#start" onClick={() => setMobileOpen(false)}><span className="brand-mark">S<span className="brand-dot">.</span></span><span className="brand-copy">Scool Tools<span>GEMEINSAM KREATIV</span></span></a>
         <button className="icon-button mobile-close" onClick={() => setMobileOpen(false)} aria-label="Navigation schließen"><X size={20} /></button>
       </div>
       <div className="sidebar-school"><span className="school-icon"><School size={20} /></span><span className="sidebar-label">Realschule<span>Zusmarshausen</span></span></div>
@@ -150,8 +150,9 @@ export default function App() {
       <div className="sidebar-bottom">
         <div className="sidebar-note"><WandSparkles size={20} /><p>Vier Tools. Viele Ideen.<span>Einfach öffnen, loslegen und mit anderen teilen.</span></p></div>
         <a className="nav-item utility-nav" href="#about" onClick={() => setMobileOpen(false)}><CircleHelp size={19} /><span className="sidebar-label">Hilfe & Infos</span></a>
+        <a className={`nav-item utility-nav ${route.page === 'imprint' ? 'active' : ''}`} href="#impressum" onClick={() => setMobileOpen(false)}><Scale size={19} /><span className="sidebar-label">Impressum</span></a>
         <button className="nav-item utility-nav" aria-label={theme === 'light' ? 'Dunkles Design' : 'Helles Design'} title={theme === 'light' ? 'Dunkles Design' : 'Helles Design'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? <Moon size={19} /> : <Sun size={19} />}<span className="sidebar-label">{theme === 'light' ? 'Dunkles Design' : 'Helles Design'}</span></button>
-        <button className="class-profile account-profile" onClick={() => { setAccountOpen(true); setMobileOpen(false); void refreshAccount().catch(() => undefined); }} aria-label={account ? 'Meine Projekte und Konto öffnen' : 'Anmelden oder Konto erstellen'}><span className="class-avatar">{account ? account.user.username.slice(0, 2).toUpperCase() : '8a'}</span><span className="sidebar-label">{account ? account.user.username : 'Anmelden'}<span>{account ? `${account.projects.length} Projekte · auf allen Geräten` : 'Konto erstellen und Projekte speichern'}</span></span><FolderOpen size={16} className="profile-heart" /></button>
+        <button className="class-profile account-profile" onClick={() => { setAccountOpen(true); setMobileOpen(false); void refreshAccount().catch(() => undefined); }} aria-label={account ? 'Meine Projekte und Konto öffnen' : 'Anmelden oder Konto erstellen'}><span className="class-avatar">{account ? account.user.username.slice(0, 2).toUpperCase() : 'ST'}</span><span className="sidebar-label">{account ? account.user.username : 'Anmelden'}<span>{account ? `${account.projects.length} Projekte · auf allen Geräten` : 'Konto erstellen und Projekte speichern'}</span></span><FolderOpen size={16} className="profile-heart" /></button>
       </div>
     </aside>
 
@@ -159,14 +160,15 @@ export default function App() {
       <header className="topbar">
         <div className="breadcrumbs">
           <button className="icon-button menu-toggle" onClick={() => mobile ? setMobileOpen(!mobileOpen) : setCollapsed(!collapsed)} aria-controls="sidebar" aria-expanded={mobile ? mobileOpen : !collapsed} aria-label={mobile ? 'Navigation öffnen' : collapsed ? 'Navigation ausklappen' : 'Navigation einklappen'}>{mobile ? <Menu size={21} /> : collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}</button>
-          <a href="#start" className="breadcrumb-school">8a Tools</a><ChevronRight size={14} className="breadcrumb-chevron" /><span>{currentName}</span>
+          <a href="#start" className="breadcrumb-school">Scool Tools</a><ChevronRight size={14} className="breadcrumb-chevron" /><span>{currentName}</span>
         </div>
-        <div className="header-end"><span className="school-label"><span className="status-dot" />Alles bereit</span><button className="header-avatar" onClick={() => { setAccountOpen(true); void refreshAccount().catch(() => undefined); }} aria-label="Konto öffnen">{account ? account.user.username.slice(0, 2).toUpperCase() : '8a'}</button></div>
+        <div className="header-end"><span className="school-label"><span className="status-dot" />Alles bereit</span><button className="header-avatar" onClick={() => { setAccountOpen(true); void refreshAccount().catch(() => undefined); }} aria-label="Konto öffnen">{account ? account.user.username.slice(0, 2).toUpperCase() : 'ST'}</button></div>
       </header>
 
       <main id="main-content" tabIndex={-1} className={toolPage ? 'tool-main' : 'main-content'}>
         {route.page === 'home' && <HomePage site={site} recents={recents} creating={creating} openTool={openTool} username={account?.user.username} onAccount={() => setAccountOpen(true)} />}
-        {route.page === 'about' && <AboutPage schoolName={site?.schoolName || 'Realschule Zusmarshausen'} />}
+        {route.page === 'about' && <AboutPage />}
+        {route.page === 'imprint' && <ImprintPage />}
         {route.page === 'timer' && <FocusTimer />}
         {route.page === 'traffic' && (!route.id ? <TrafficStartPage /> : route.teacherKey ? <TrafficTeacherPage key={route.id} roomId={route.id} teacherKey={route.teacherKey} /> : null)}
         {route.page === 'tool' && (!route.id ? <EmptyTool type={route.type} creating={creating === route.type} onCreate={() => void openTool(route.type)} /> : loadError ? <ErrorState message={loadError} /> : workspace ?
@@ -235,7 +237,7 @@ function HomePage({ site, recents, creating, openTool, username, onAccount }: { 
   };
 
   return <>
-    <div className="dashboard-welcome"><div><span className="eyebrow">DEIN DIGITALER KREATIVRAUM</span><p>{username ? `Schön, dass du da bist, ${username}.` : 'Gute Ideen entstehen zusammen.'}</p></div><span className="class-badge"><School size={15} /> Von der 8a. Für alle.</span></div>
+    <div className="dashboard-welcome"><div><span className="eyebrow">DEIN DIGITALER KREATIVRAUM</span><p>{username ? `Schön, dass du da bist, ${username}.` : 'Gute Ideen entstehen zusammen.'}</p></div><span className="class-badge"><School size={15} /> Scool Tools. Für alle.</span></div>
     <section className="dashboard-hero">
       <div className="hero-copy"><span className="hero-tag"><Sparkles size={14} /> GEMEINSAM KREATIV</span><h1>Ideen brauchen<br /><span>den richtigen<br className="hero-title-break" /> Raum.</span></h1><p>{site?.welcomeText || 'Kreative Werkzeuge für Ideen, Gruppenarbeit und alles, was wir gemeinsam schaffen.'}</p><div className="hero-actions"><button className="primary-button" onClick={() => void openTool('whiteboard')} disabled={creating !== null}><Brush size={17} /> Whiteboard starten<ArrowUpRight size={16} /></button><button className="secondary-button" onClick={() => void openTool('writer')} disabled={creating !== null}><FileText size={17} /> Dokument starten</button></div><div className="hero-footnote"><Check size={14} /> Kostenlos. Direkt im Browser. Zusammen.</div></div>
       <CreativeCollage />
@@ -274,12 +276,38 @@ function HomePage({ site, recents, creating, openTool, username, onAccount }: { 
       <button role="menuitem" onClick={() => void runProjectAction('remove')}><X size={16} /> Aus Liste entfernen</button>
       {projectMenu.item.editKey && <button className="context-danger" role="menuitem" onClick={() => void runProjectAction('delete')}><Trash2 size={16} /> Endgültig löschen</button>}
     </div>}
-    <footer className="footer"><span><strong>8a Tools</strong><span className="footer-separator">/</span>{site?.schoolName || 'Realschule Zusmarshausen'}</span><span>Von uns gemacht. Für uns gedacht.<Heart size={13} /></span></footer>
+    <footer className="footer"><span><strong>Scool Tools</strong><span className="footer-separator">/</span>{site?.schoolName || 'Realschule Zusmarshausen'}</span><span className="footer-end"><a href="#impressum">Impressum</a><span className="footer-separator">/</span><span>Von uns gemacht. Für uns gedacht.<Heart size={13} /></span></span></footer>
   </>;
 }
 
-function AboutPage({ schoolName }: { schoolName: string }) {
-  return <><div className="page-heading"><div><span className="eyebrow">UNSER PROJEKT</span><h1>Werkzeuge, die Zusammenarbeit leichter machen.</h1><p>Von der 8a für alle, die gemeinsam Ideen entwickeln möchten.</p></div></div><section className="about-panel"><span className="hero-tag"><Users size={13} /> GEMEINSAM STATT ALLEIN</span><h2>Ein Ort. Viele Möglichkeiten.</h2><p>8a Tools bündelt freie, bewährte Werkzeuge in einem ruhigen und einheitlichen Design. Whiteboards und Dokumente lassen sich sofort erstellen, automatisch speichern und per Link oder QR-Code teilen.</p><div className="about-values"><article><Brush size={22} /><h3>Visuell denken</h3><p>Skizzen, Erklärungen und Abläufe auf einer freien Fläche.</p></article><article><FileText size={22} /><h3>Gemeinsam schreiben</h3><p>Texte im Team entwerfen, formatieren und exportieren.</p></article><article><Sparkles size={22} /><h3>Einfach teilen</h3><p>Bearbeitungs- oder Leselink passend zur Situation.</p></article></div><div className="project-notice"><Info size={21} /><p>Ein Klassenprojekt der 8a an der {schoolName}. Die integrierten Editoren basieren auf freien Open-Source-Projekten.</p></div><a href="#start" className="primary-button"><Home size={17} /> Zu den Tools</a></section></>;
+function AboutPage() {
+  const [idea, setIdea] = useState('');
+  const [status, setStatus] = useState<'idle' | 'sending' | 'success' | 'error'>('idle');
+
+  const submitIdea = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const message = idea.trim();
+    if (!message || status === 'sending') return;
+    setStatus('sending');
+    try {
+      const response = await fetch('/api/ideas', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+      if (!response.ok) throw new Error('Einreichen fehlgeschlagen');
+      setIdea('');
+      setStatus('success');
+    } catch {
+      setStatus('error');
+    }
+  };
+
+  return <><div className="page-heading"><div><span className="eyebrow">UNSER PROJEKT</span><h1>Werkzeuge, die Zusammenarbeit leichter machen.</h1><p>Für alle, die gemeinsam Ideen entwickeln möchten.</p></div></div><section className="about-panel"><span className="hero-tag"><Users size={13} /> GEMEINSAM STATT ALLEIN</span><h2>Ein Ort. Viele Möglichkeiten.</h2><p>Scool Tools bündelt freie, bewährte Werkzeuge in einem ruhigen und einheitlichen Design. Whiteboards und Dokumente lassen sich sofort erstellen, automatisch speichern und per Link oder QR-Code teilen.</p><div className="about-values"><article><Brush size={22} /><h3>Visuell denken</h3><p>Skizzen, Erklärungen und Abläufe auf einer freien Fläche.</p></article><article><FileText size={22} /><h3>Gemeinsam schreiben</h3><p>Texte im Team entwerfen, formatieren und exportieren.</p></article><article><Sparkles size={22} /><h3>Einfach teilen</h3><p>Bearbeitungs- oder Leselink passend zur Situation.</p></article></div><div className="project-notice"><Info size={21} /><p>Ideen gerne unten eintragen.</p></div><form className="idea-form" onSubmit={event => void submitIdea(event)}><div className="idea-form-heading"><span className="idea-icon"><Lightbulb size={22} /></span><div><h3>Deine Idee für Scool Tools</h3><p>Was fehlt dir noch? Wir freuen uns über deinen Vorschlag.</p></div></div><label htmlFor="idea-message">Deine Idee</label><textarea id="idea-message" value={idea} onChange={event => { setIdea(event.target.value); if (status !== 'idle') setStatus('idle'); }} maxLength={1000} rows={5} placeholder="Beschreibe hier deine Idee …" required /><div className="idea-form-footer"><span>{idea.length}/1000 Zeichen</span><button className="primary-button" type="submit" disabled={!idea.trim() || status === 'sending'}><Send size={16} /> {status === 'sending' ? 'Wird gesendet …' : 'Idee einreichen'}</button></div>{status === 'success' && <p className="idea-feedback success" role="status"><Check size={16} /> Danke! Deine Idee wurde eingereicht.</p>}{status === 'error' && <p className="idea-feedback error" role="alert">Das hat leider nicht geklappt. Bitte versuche es erneut.</p>}</form><a href="#start" className="primary-button about-back"><Home size={17} /> Zu den Tools</a></section></>;
+}
+
+function ImprintPage() {
+  return <><div className="page-heading"><div><span className="eyebrow">RECHTLICHE ANGABEN</span><h1>Impressum</h1><p>Anbieterkennzeichnung und verantwortliche Organisation hinter Scool Tools.</p></div></div><section className="imprint-panel"><span className="hero-tag"><Scale size={13} /> IMPRESSUM &amp; RECHTLICHES</span><div className="imprint-provider"><div><span className="eyebrow">ANBIETER</span><address><strong>KidsLab gGmbH</strong><br />Neidhartstr. 2<br />86159 Augsburg</address></div><p>Die angegebene Anschrift ist die Postanschrift. Das KidsLab und sein Büro befinden sich laut KidsLab nicht an dieser Adresse.</p></div><div className="imprint-details"><article><h2>Vertreten durch</h2><p>Gregor Walter<br />Regine Scheyer</p></article><article><h2>Registereintrag</h2><p>Handelsregister<br />Registergericht: Augsburg<br />Registernummer: 34884</p></article></div><div className="imprint-source"><Info size={20} /><div><h2>Quelle und weitere Hinweise</h2><p>Die Anbieterangaben wurden aus dem offiziellen KidsLab-Impressum übernommen. Dort stehen auch die vollständigen Hinweise zu Haftung, Urheberrecht und Datenschutz.</p><a href="https://kidslab.de/ueber-kidslab/impressum/" target="_blank" rel="noreferrer">Vollständiges KidsLab-Impressum <ExternalLink size={15} /></a></div></div><a href="#start" className="primary-button imprint-back"><Home size={17} /> Zu den Tools</a></section></>;
 }
 
 function EmptyTool({ type, creating, onCreate }: { type: ToolKind; creating: boolean; onCreate: () => void }) { const Icon = toolInfo[type].icon; return <div className="center-state"><span className={`large-tool-icon ${toolInfo[type].color}`}><Icon size={32} /></span><h1>{toolInfo[type].name}</h1><p>{toolInfo[type].description}</p><button className="primary-button" onClick={onCreate} disabled={creating}><Plus size={18} /> {creating ? 'Wird erstellt …' : 'Neu erstellen'}</button></div>; }

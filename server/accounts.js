@@ -53,7 +53,7 @@ function validCredentials(body) {
   return { username, password };
 }
 
-export function installAccounts(app, db, hasValidKey) {
+export function installAccounts(app, db, hasValidKey, security) {
   app.use((req, _res, next) => {
     const token = cookies(req.get('cookie'))[COOKIE];
     if (token) {
@@ -68,7 +68,7 @@ export function installAccounts(app, db, hasValidKey) {
     next();
   });
 
-  app.post('/api/auth/register', async (req, res) => {
+  app.post('/api/auth/register', security.registerLimiter, security.registerQuota, security.userCapacity, async (req, res) => {
     const credentials = validCredentials(req.body);
     if (credentials.error) return res.status(400).json({ error: credentials.error });
     const id = randomUUID();
@@ -85,7 +85,7 @@ export function installAccounts(app, db, hasValidKey) {
     }
   });
 
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', security.loginIpLimiter, security.loginAccountLimiter, async (req, res) => {
     const username = typeof req.body?.username === 'string' ? req.body.username.trim() : '';
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
     const user = db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username);

@@ -25,7 +25,7 @@ export default function ShareDialog({ open, onClose, type, id, editKey, title }:
   const download = () => {
     const anchor = document.createElement('a');
     anchor.href = qr;
-    anchor.download = `${title.toLowerCase().replace(/[^a-z0-9äöü]+/gi, '-') || '8a-tool'}-qr.png`;
+    anchor.download = `${title.toLowerCase().replace(/[^a-z0-9äöü]+/gi, '-') || 'scool-tool'}-qr.png`;
     anchor.click();
   };
 

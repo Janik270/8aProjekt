@@ -26,7 +26,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/8a.
         ) STRICT;
       `);
       db.prepare('INSERT INTO site_settings VALUES (1, ?, ?, ?, ?)').run(
-        '8a Projekt',
+        'Scool Tools',
         'Realschule Zusmarshausen',
         '8a',
         'Ein Ort für unsere Klasse. Alles, was unseren Schulalltag einfacher macht – gemeinsam gedacht, von uns gestaltet.',
@@ -58,7 +58,7 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/8a.
         SET project_name = ?, welcome_text = ?
         WHERE id = 1
       `).run(
-        '8a Tools',
+        'Scool Tools',
         'Kreative Werkzeuge für Ideen, Gruppenarbeit und alles, was wir gemeinsam schaffen.',
       );
       db.exec('PRAGMA user_version = 2; COMMIT;');
@@ -129,6 +129,41 @@ export function openDatabase(filename = process.env.DATABASE_PATH || './data/8a.
         ) STRICT;
         CREATE INDEX traffic_students_room_id ON traffic_students(room_id);
         PRAGMA user_version = 5;
+        COMMIT;
+      `);
+    } catch (error) {
+      db.exec('ROLLBACK');
+      db.close();
+      throw error;
+    }
+  }
+  if (version < 6) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`
+        UPDATE site_settings SET project_name = 'Scool Tools' WHERE id = 1;
+        PRAGMA user_version = 6;
+        COMMIT;
+      `);
+    } catch (error) {
+      db.exec('ROLLBACK');
+      db.close();
+      throw error;
+    }
+  }
+  if (version < 7) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      db.exec(`
+        CREATE TABLE security_usage (
+          kind TEXT NOT NULL,
+          subject_hash TEXT NOT NULL,
+          window_start INTEGER NOT NULL,
+          count INTEGER NOT NULL CHECK (count > 0),
+          PRIMARY KEY (kind, subject_hash, window_start)
+        ) STRICT;
+        CREATE INDEX security_usage_window_start ON security_usage(window_start);
+        PRAGMA user_version = 7;
         COMMIT;
       `);
     } catch (error) {
