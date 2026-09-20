@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { createApp } from './app.js';
 import { openDatabase } from './database.js';
 import { cleanupExpiredData } from './maintenance.js';
+import { hasAllowedWebSocketOrigin } from './security.js';
 
 async function fixture(t, options = {}) {
   const db = openDatabase(':memory:');
@@ -40,6 +41,22 @@ test('security headers and same-origin protection are active', async t => {
     body: JSON.stringify({ type: 'writer' }),
   });
   assert.equal(foreignWrite.status, 403);
+});
+
+test('WebSocket origin checks work behind HTTPS reverse proxies', () => {
+  const request = (headers, remoteAddress = '127.0.0.1') => ({ headers, socket: { remoteAddress } });
+  assert.equal(hasAllowedWebSocketOrigin(request({ origin: 'https://tools.example.de', host: 'tools.example.de' })), true);
+  assert.equal(hasAllowedWebSocketOrigin(request({
+    origin: 'https://tools.example.de',
+    host: '127.0.0.1:3001',
+    'x-forwarded-host': 'tools.example.de',
+    'x-forwarded-proto': 'https',
+  })), true);
+  assert.equal(hasAllowedWebSocketOrigin(request({
+    origin: 'https://tools.example.de', host: 'tools.example.de', 'x-forwarded-proto': 'http',
+  })), false);
+  assert.equal(hasAllowedWebSocketOrigin(request({ origin: 'https://angreifer.example', host: 'tools.example.de' })), false);
+  assert.equal(hasAllowedWebSocketOrigin(request({ origin: 'keine-url', host: 'tools.example.de' })), false);
 });
 
 test('route rate limits reject bot bursts without blocking normal requests', async t => {

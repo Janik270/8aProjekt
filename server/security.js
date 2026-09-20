@@ -242,7 +242,21 @@ export function createSocketGate({ maxPerIp = 60, maxTotal = 600, attemptsPerMin
 export function hasAllowedWebSocketOrigin(request) {
   const origin = request.headers.origin;
   if (!origin) return true;
-  const forwardedProto = request.headers['x-forwarded-proto'];
-  const protocol = forwardedProto ? String(forwardedProto).split(',')[0].trim() : 'http';
-  return origin === `${protocol}://${request.headers.host}`;
+  let parsedOrigin;
+  try { parsedOrigin = new URL(String(origin)); }
+  catch { return false; }
+  if (!['http:', 'https:'].includes(parsedOrigin.protocol)) return false;
+
+  const remote = request.socket?.remoteAddress || '';
+  const forwardedHost = isLoopback(remote) ? request.headers['x-forwarded-host'] : '';
+  const publicHost = String(forwardedHost || request.headers.host || '').split(',')[0].trim().toLowerCase();
+  if (!publicHost || parsedOrigin.host.toLowerCase() !== publicHost) return false;
+
+  // Some reverse proxies preserve the public Host but omit X-Forwarded-Proto
+  // specifically on WebSocket upgrades. A matching host is still same-origin;
+  // when the trusted proxy does provide a scheme, verify it as well.
+  const forwardedProto = isLoopback(remote) ? request.headers['x-forwarded-proto'] : '';
+  if (!forwardedProto) return true;
+  const protocol = String(forwardedProto).split(',')[0].trim().toLowerCase();
+  return parsedOrigin.protocol === `${protocol}:`;
 }
