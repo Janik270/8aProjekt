@@ -56,6 +56,22 @@ pm2 save
 
 Nach späteren Updates genügen `npm install`, `npm run build` und `pm2 restart scool-tools --update-env`. Der Cluster-Modus (`-i`) darf ohne gemeinsamen Rate-Limit-Store und verteilten WebSocket-Adapter nicht verwendet werden.
 
+### WebSocket-Weiterleitung über GitHub reparieren
+
+Wenn Excalidraw und Group Writer dauerhaft „Verbindung unterbrochen“ melden und Nginx die WebSocket-Anfrage als normale HTTP-Anfrage mit 404 beantwortet, kann die aktive Serverkonfiguration mit dem mitgelieferten Skript repariert werden. Nach dem Push dieser Dateien zu GitHub auf dem Ubuntu-Server als root ausführen:
+
+```sh
+cd /root/Tolls
+git pull --ff-only
+npm run fix:nginx
+```
+
+Das Skript verwendet standardmäßig `tools.gesu.de`. Es ermittelt die aktiven Dateien mit `nginx -T`, sichert die betroffenen Konfigurationsdateien und ergänzt die WebSocket-Header in den vorhandenen Proxy-Blöcken dieser Domain. Backend-Adressen, Zertifikate, Zugriffsschutz und vorhandene Limits bleiben bestehen. Erst nach erfolgreichem `nginx -t` wird Nginx neu geladen; bei einem Fehler werden die gesicherten Dateien wiederhergestellt. Wiederholte Aufrufe fügen keine doppelten Einträge hinzu. Ein Browser-Neuladen genügt danach; für diese reine Nginx-Reparatur sind weder ein Frontend-Build noch ein PM2-Neustart nötig.
+
+Mit `npm run fix:nginx -- --check` werden nur die geplanten Dateipfade angezeigt. Eine andere Domain kann mit `npm run fix:nginx -- tools.example.de` angegeben werden. Das Skript erfasst direkte Proxy-Blöcke in der betreffenden Server-Konfiguration. Ausgelagerte Location-Includes benötigen eine manuelle Prüfung; wenn kein direkter Proxy-Block gefunden wird, bricht das Skript ohne Änderungen ab. Sicherungen liegen außerhalb der aktiven Nginx-Verzeichnisse unter `/var/backups/scool-tools-nginx`; der genaue Pfad wird ausgegeben. Ein `git pull` alleine aktiviert Änderungen unter `/etc/nginx` nicht.
+
+Die Sicherung und Wiederherstellung des Skripts lassen sich lokal mit `npm run test:deploy` prüfen. Hierfür werden ausschließlich temporäre Testdateien verwendet.
+
 ## Datenbank und Freigaben
 
 Beim ersten Start wird `data/8a.sqlite` angelegt. Whiteboards und Dokumente werden mit zufälligen IDs gespeichert. Eingereichte Vorschläge landen mit Zeitstempel in `data/ideen.txt`. Der Bearbeitungsschlüssel steht ausschließlich im Hash des Freigabelinks und wird in der Datenbank nur als SHA-256-Hash abgelegt. Ein Link ohne Schlüssel erlaubt nur das Ansehen.

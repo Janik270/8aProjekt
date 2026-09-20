@@ -12,6 +12,8 @@
     "dev:web": "vite --host 0.0.0.0",
     "build": "tsc --noEmit && vite build",
     "start": "node server/index.js",
+    "fix:nginx": "node deploy/fix-nginx-websocket.mjs",
+    "test:deploy": "node --test deploy/*.test.mjs",
     "test": "node --test server/*.test.js",
     "test:e2e": "npm run build && playwright test"
   },
